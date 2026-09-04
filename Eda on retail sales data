@@ -1,0 +1,405 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# ------------------------------------------------------------
+# 1. LOAD DATASET
+# ------------------------------------------------------------
+
+file_path = "retail_sales.csv"   # Change filename if required
+
+df = pd.read_csv(file_path)
+
+print("=" * 60)
+print("RETAIL SALES DATA - EXPLORATORY DATA ANALYSIS")
+print("=" * 60)
+
+# ------------------------------------------------------------
+# 2. INITIAL INSPECTION
+# ------------------------------------------------------------
+
+print("\nDataset Shape:")
+print(df.shape)
+
+print("\nColumn Names:")
+print(df.columns.tolist())
+
+print("\nFirst 5 Records:")
+print(df.head())
+
+print("\nData Types:")
+print(df.dtypes)
+
+print("\nMissing Values:")
+print(df.isnull().sum())
+
+print("\nDuplicate Rows:")
+print(df.duplicated().sum())
+
+# ------------------------------------------------------------
+# 3. DESCRIPTIVE STATISTICS
+# ------------------------------------------------------------
+
+numeric_columns = df.select_dtypes(include=np.number).columns
+
+print("\n" + "=" * 60)
+print("DESCRIPTIVE STATISTICS")
+print("=" * 60)
+
+print("\nMean:")
+print(df[numeric_columns].mean())
+
+print("\nMedian:")
+print(df[numeric_columns].median())
+
+print("\nMode:")
+print(df[numeric_columns].mode().iloc[0])
+
+print("\nStandard Deviation:")
+print(df[numeric_columns].std())
+
+print("\nComplete Statistical Summary:")
+print(df.describe())
+
+# ------------------------------------------------------------
+# 4. AUTOMATICALLY FIND IMPORTANT COLUMNS
+# ------------------------------------------------------------
+
+def find_column(possible_names):
+    for name in possible_names:
+        if name in df.columns:
+            return name
+    return None
+
+date_col = find_column([
+    "Date", "date", "Order Date", "OrderDate",
+    "InvoiceDate", "Transaction Date"
+])
+
+sales_col = find_column([
+    "Sales", "sales", "Revenue", "revenue",
+    "Total Sales", "Total_Sales", "Amount",
+    "amount", "Purchase Amount"
+])
+
+product_col = find_column([
+    "Product", "product", "Product Name",
+    "ProductName", "Description"
+])
+
+category_col = find_column([
+    "Category", "category", "Product Category",
+    "Product_Category"
+])
+
+age_col = find_column([
+    "Age", "age", "Customer Age", "customer_age"
+])
+
+gender_col = find_column([
+    "Gender", "gender", "Customer Gender",
+    "customer_gender"
+])
+
+print("\nDetected Columns:")
+print("Date     :", date_col)
+print("Sales    :", sales_col)
+print("Product  :", product_col)
+print("Category :", category_col)
+print("Age      :", age_col)
+print("Gender   :", gender_col)
+
+# ------------------------------------------------------------
+# 5. CONVERT DATE COLUMN
+# ------------------------------------------------------------
+
+if date_col:
+    df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+
+# ------------------------------------------------------------
+# 6. TIME SERIES - MONTHLY SALES
+# ------------------------------------------------------------
+
+if date_col and sales_col:
+
+    monthly_sales = (
+        df.set_index(date_col)[sales_col]
+        .resample("ME")
+        .sum()
+    )
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(
+        monthly_sales.index,
+        monthly_sales.values,
+        marker="o"
+    )
+
+    plt.title("Monthly Sales Trend")
+    plt.xlabel("Month")
+    plt.ylabel("Sales")
+    plt.xticks(rotation=45)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    print("\nMonthly Sales:")
+    print(monthly_sales)
+
+# ------------------------------------------------------------
+# 7. QUARTERLY SALES TREND
+# ------------------------------------------------------------
+
+if date_col and sales_col:
+
+    quarterly_sales = (
+        df.set_index(date_col)[sales_col]
+        .resample("QE")
+        .sum()
+    )
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(
+        quarterly_sales.index,
+        quarterly_sales.values,
+        marker="o"
+    )
+
+    plt.title("Quarterly Sales Trend")
+    plt.xlabel("Quarter")
+    plt.ylabel("Sales")
+    plt.xticks(rotation=45)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 8. CUSTOMER AGE ANALYSIS
+# ------------------------------------------------------------
+
+if age_col:
+
+    plt.figure(figsize=(10, 6))
+
+    sns.histplot(
+        df[age_col].dropna(),
+        bins=20,
+        kde=True
+    )
+
+    plt.title("Customer Age Distribution")
+    plt.xlabel("Age")
+    plt.ylabel("Number of Customers")
+    plt.tight_layout()
+    plt.show()
+
+    # Age groups
+    bins = [0, 18, 25, 35, 45, 55, 65, 100]
+
+    labels = [
+        "Under 18",
+        "18-25",
+        "26-35",
+        "36-45",
+        "46-55",
+        "56-65",
+        "65+"
+    ]
+
+    df["Age_Group"] = pd.cut(
+        df[age_col],
+        bins=bins,
+        labels=labels,
+        include_lowest=True
+    )
+
+    age_groups = df["Age_Group"].value_counts().sort_index()
+
+    print("\nCustomer Age Groups:")
+    print(age_groups)
+
+    plt.figure(figsize=(10, 6))
+    age_groups.plot(kind="bar")
+
+    plt.title("Customer Age Groups")
+    plt.xlabel("Age Group")
+    plt.ylabel("Number of Customers")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 9. GENDER ANALYSIS
+# ------------------------------------------------------------
+
+if gender_col:
+
+    gender_counts = df[gender_col].value_counts()
+
+    print("\nGender Distribution:")
+    print(gender_counts)
+
+    plt.figure(figsize=(8, 5))
+
+    gender_counts.plot(kind="bar")
+
+    plt.title("Customer Gender Distribution")
+    plt.xlabel("Gender")
+    plt.ylabel("Number of Customers")
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 10. TOP 10 BEST-SELLING PRODUCTS
+# ------------------------------------------------------------
+
+if product_col:
+
+    top_products = df[product_col].value_counts().head(10)
+
+    print("\nTop 10 Best-Selling Products:")
+    print(top_products)
+
+    plt.figure(figsize=(12, 6))
+
+    top_products.sort_values().plot(kind="barh")
+
+    plt.title("Top 10 Best-Selling Products")
+    plt.xlabel("Number of Sales")
+    plt.ylabel("Product")
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 11. REVENUE BY PRODUCT CATEGORY
+# ------------------------------------------------------------
+
+if category_col and sales_col:
+
+    category_revenue = (
+        df.groupby(category_col)[sales_col]
+        .sum()
+        .sort_values(ascending=False)
+    )
+
+    print("\nRevenue by Product Category:")
+    print(category_revenue)
+
+    plt.figure(figsize=(10, 6))
+
+    category_revenue.plot(kind="bar")
+
+    plt.title("Revenue by Product Category")
+    plt.xlabel("Product Category")
+    plt.ylabel("Revenue")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 12. CORRELATION HEATMAP
+# ------------------------------------------------------------
+
+numeric_df = df.select_dtypes(include=np.number)
+
+if len(numeric_df.columns) > 1:
+
+    correlation = numeric_df.corr()
+
+    plt.figure(figsize=(12, 8))
+
+    sns.heatmap(
+        correlation,
+        annot=True,
+        cmap="coolwarm",
+        fmt=".2f"
+    )
+
+    plt.title("Correlation Matrix")
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 13. SALES DISTRIBUTION
+# ------------------------------------------------------------
+
+if sales_col:
+
+    plt.figure(figsize=(10, 6))
+
+    sns.histplot(
+        df[sales_col].dropna(),
+        bins=30,
+        kde=True
+    )
+
+    plt.title("Sales Distribution")
+    plt.xlabel("Sales")
+    plt.ylabel("Frequency")
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 14. SALES OUTLIER ANALYSIS
+# ------------------------------------------------------------
+
+if sales_col:
+
+    plt.figure(figsize=(10, 5))
+
+    sns.boxplot(
+        x=df[sales_col]
+    )
+
+    plt.title("Sales Outlier Analysis")
+    plt.xlabel("Sales")
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 15. FINAL BUSINESS INSIGHTS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 60)
+print("BUSINESS INSIGHTS AND RECOMMENDATIONS")
+print("=" * 60)
+
+if sales_col:
+
+    print("\nTotal Sales:", df[sales_col].sum())
+    print("Average Sales:", df[sales_col].mean())
+    print("Median Sales:", df[sales_col].median())
+    print("Maximum Sales:", df[sales_col].max())
+    print("Minimum Sales:", df[sales_col].min())
+
+print("""
+1. Identify and promote the top-selling products.
+
+2. Maintain sufficient inventory for products with
+   consistently high demand.
+
+3. Use customer age and gender information for
+   targeted marketing campaigns.
+
+4. Use monthly and quarterly sales trends to identify
+   seasonal patterns and plan promotions.
+
+5. Investigate sales outliers because unusually high
+   or low transactions may provide useful business insights.
+
+6. Use the correlation analysis to understand relationships
+   between numerical variables and sales performance.
+""")
+
+# ------------------------------------------------------------
+# 16. SAVE ANALYSIS DATASET
+# ------------------------------------------------------------
+
+df.to_csv(
+    "retail_sales_analysis_output.csv",
+    index=False
+)
+
+print("\nAnalysis completed successfully!")
+print("Output file saved as: retail_sales_analysis_output.csv")
