@@ -1,0 +1,298 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# ------------------------------------------------------------
+# 1. LOAD DATASET
+# ------------------------------------------------------------
+
+file_path = "dirty_dataset.csv"     # Change to your CSV filename
+
+df = pd.read_csv(file_path)
+
+print("=" * 70)
+print("DATA CLEANING AND QUALITY ANALYSIS")
+print("=" * 70)
+
+# Keep original copy for before-vs-after comparison
+df_original = df.copy()
+
+print("\nOriginal dataset shape:", df.shape)
+
+# ------------------------------------------------------------
+# 2. DATA QUALITY REPORT - BEFORE CLEANING
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("DATA QUALITY REPORT - BEFORE CLEANING")
+print("=" * 70)
+
+print("\nNumber of rows:", len(df))
+print("Number of columns:", len(df.columns))
+
+print("\nColumn names:")
+print(df.columns.tolist())
+
+print("\nData types:")
+print(df.dtypes)
+
+print("\nMissing values:")
+print(df.isnull().sum())
+
+print("\nDuplicate rows:")
+print(df.duplicated().sum())
+
+print("\nDescriptive statistics:")
+print(df.describe(include="all"))
+
+# ------------------------------------------------------------
+# 3. MISSING VALUE PERCENTAGE
+# ------------------------------------------------------------
+
+missing_report = pd.DataFrame({
+    "Missing_Count": df.isnull().sum(),
+    "Missing_Percentage":
+        (df.isnull().sum() / len(df)) * 100
+})
+
+print("\nMissing Value Report:")
+print(missing_report)
+
+# ------------------------------------------------------------
+# 4. HANDLE MISSING VALUES
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("HANDLING MISSING VALUES")
+print("=" * 70)
+
+for column in df.columns:
+
+    if df[column].isnull().sum() > 0:
+
+        # Numerical columns
+        if pd.api.types.is_numeric_dtype(df[column]):
+
+            # Use median because it is less affected by outliers
+            median_value = df[column].median()
+
+            df[column] = df[column].fillna(
+                median_value
+            )
+
+            print(
+                f"{column}: Missing values filled "
+                f"using median = {median_value}"
+            )
+
+        # Categorical columns
+        else:
+
+            mode_value = df[column].mode()
+
+            if len(mode_value) > 0:
+
+                df[column] = df[column].fillna(
+                    mode_value[0]
+                )
+
+                print(
+                    f"{column}: Missing values filled "
+                    f"using mode = {mode_value[0]}"
+                )
+
+# ------------------------------------------------------------
+# 5. REMOVE DUPLICATE ROWS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("DUPLICATE HANDLING")
+print("=" * 70)
+
+duplicates_before = df.duplicated().sum()
+
+df = df.drop_duplicates()
+
+duplicates_removed = duplicates_before - df.duplicated().sum()
+
+print("Duplicates before cleaning:", duplicates_before)
+print("Duplicates removed:", duplicates_removed)
+print("Duplicates after cleaning:", df.duplicated().sum())
+
+# ------------------------------------------------------------
+# 6. STANDARDIZE TEXT DATA
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("STANDARDIZING TEXT DATA")
+print("=" * 70)
+
+for column in df.select_dtypes(include="object").columns:
+
+    # Remove leading/trailing spaces
+    df[column] = df[column].astype(str).str.strip()
+
+    # Replace multiple spaces with one space
+    df[column] = df[column].str.replace(
+        r"\s+",
+        " ",
+        regex=True
+    )
+
+    # Standardize gender values if Gender column exists
+    if column.lower() == "gender":
+
+        df[column] = (
+            df[column]
+            .str.lower()
+            .replace({
+                "m": "Male",
+                "male": "Male",
+                "man": "Male",
+                "f": "Female",
+                "female": "Female",
+                "woman": "Female"
+            })
+        )
+
+    print(f"{column}: Text formatting standardized.")
+
+# ------------------------------------------------------------
+# 7. CONVERT DATE COLUMNS
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("DATE FORMAT CORRECTION")
+print("=" * 70)
+
+date_keywords = [
+    "date",
+    "dob",
+    "birth",
+    "time"
+]
+
+for column in df.columns:
+
+    if any(
+        keyword in column.lower()
+        for keyword in date_keywords
+    ):
+
+        try:
+
+            converted = pd.to_datetime(
+                df[column],
+                errors="coerce"
+            )
+
+            # Only replace if conversion is reasonably successful
+            valid_ratio = converted.notnull().mean()
+
+            if valid_ratio >= 0.5:
+
+                df[column] = converted
+
+                print(
+                    f"{column}: Converted to datetime."
+                )
+
+        except Exception:
+
+            pass
+
+# ------------------------------------------------------------
+# 8. DATA TYPE CORRECTION
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("DATA TYPE CORRECTION")
+print("=" * 70)
+
+for column in df.columns:
+
+    # Do not change datetime columns
+    if pd.api.types.is_datetime64_any_dtype(
+        df[column]
+    ):
+        continue
+
+    # Try converting object columns to numeric
+    if df[column].dtype == "object":
+
+        converted = pd.to_numeric(
+            df[column],
+            errors="coerce"
+        )
+
+        # If most values are numeric, convert column
+        if converted.notnull().mean() >= 0.8:
+
+            df[column] = converted
+
+            print(
+                f"{column}: Converted to numeric."
+            )
+
+# ------------------------------------------------------------
+# 9. IDENTIFY NUMERICAL OUTLIERS USING IQR
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("OUTLIER DETECTION USING IQR")
+print("=" * 70)
+
+numeric_columns = df.select_dtypes(
+    include=np.number
+).columns
+
+outlier_summary = {}
+
+for column in numeric_columns:
+
+    Q1 = df[column].quantile(0.25)
+    Q3 = df[column].quantile(0.75)
+
+    IQR = Q3 - Q1
+
+    lower_limit = Q1 - 1.5 * IQR
+    upper_limit = Q3 + 1.5 * IQR
+
+    outliers = df[
+        (df[column] < lower_limit) |
+        (df[column] > upper_limit)
+    ]
+
+    outlier_summary[column] = len(outliers)
+
+    print(
+        f"{column}: {len(outliers)} outliers"
+    )
+
+# ------------------------------------------------------------
+# 10. VISUALIZE OUTLIERS
+# ------------------------------------------------------------
+
+for column in numeric_columns:
+
+    plt.figure(figsize=(8, 4))
+
+    sns.boxplot(
+        x=df[column]
+    )
+
+    plt.title(
+        f"Outlier Detection - {column}"
+    )
+
+    plt.xlabel(column)
+
+    plt.tight_layout()
+    plt.show()
+
+# ------------------------------------------------------------
+# 11. HANDLE OUTLIERS USING IQR CAPPING
+# ------------------------------------------------------------
+
+print("\n" + "=" *
